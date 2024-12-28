@@ -28,22 +28,6 @@ async function run() {
 
         const bookCollection = client.db('Ereaders-database').collection('books-data');
 
-        app.get('/jobs', async (req, res) => {
-            try {
-                const cursor = bookCollection.find();
-                const result = await cursor.toArray();
-                res.send(result);
-            } catch (err) {
-                res.status(500).send({ error: 'Failed to fetch books' });
-            }
-        });
-
-        app.get('/jobs/:id', async (req, res) => {
-            const id = req.params.id ; 
-            const query = {_id: id}
-            const result = await bookCollection.findOne(query) ; 
-            res.send(result) ; 
-        })
         
         app.patch('/jobs/:id', async (req, res) => {
             console.log("Request received:", req.body); // Debugging
