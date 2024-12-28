@@ -26,6 +26,7 @@ const BookModel = mongoose.model('Book', BookSchema);
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.BOOK_USER}:${process.env.BOOK_PASS}@cluster0.5t4p0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
+
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
