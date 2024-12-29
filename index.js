@@ -122,6 +122,45 @@ async function connectToDatabase() {
             }
         });
 
+        app.post('/borrow/:id', async (req, res) => {
+            const { id } = req.params; // 'id' is treated as a plain string
+            const { userName, userEmail, returnDate } = req.body;
+        
+            // Validate input fields
+            if (!userName || !userEmail || !returnDate) {
+                return res.status(400).json({ error: 'All fields are required' });
+            }
+        
+            try {
+                // Find the book using the plain string `id`
+                const book = await bookCollection.findOne({ _id: id });
+        
+                if (!book) {
+                    return res.status(404).json({ error: 'Book not found' });
+                }
+        
+                if (book.quantity <= 0) {
+                    return res.status(400).json({ error: 'Book out of stock' });
+                }
+        
+                // Update the book quantity
+                const result = await bookCollection.updateOne(
+                    { _id: id },
+                    { $inc: { quantity: -1 } }
+                );
+        
+                if (result.modifiedCount > 0) {
+                    res.status(200).json({ message: 'Book borrowed successfully' });
+                } else {
+                    res.status(400).json({ error: 'Failed to update book quantity' });
+                }
+            } catch (error) {
+                console.error("Error borrowing book:", error.message);
+                res.status(500).json({ error: 'Failed to borrow book' });
+            }
+        });
+        
+
     } catch (error) {
         console.error("Error connecting to MongoDB:", error.message);
     }
