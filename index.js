@@ -20,6 +20,7 @@ async function connectToDatabase() {
         console.log("MongoClient: Successfully connected to MongoDB");
 
         const bookCollection = client.db("Ereaders-database").collection("books-data");
+        const BorrowbookCollection = client.db("Ereaders-database").collection("borrowed-books");
 
         // Routes
 
@@ -42,10 +43,10 @@ async function connectToDatabase() {
         // Fetch a Single Book by bookId
         app.get('/books/:bookId', async (req, res) => {
             const { bookId } = req.params;
-        
+
             try {
-                const book = await bookCollection.findOne({ _id: bookId });
-        
+                const book = await bookCollection.findOne({ _id: new ObjectId(bookId) });
+
                 if (book) {
                     res.status(200).json(book);
                 } else {
@@ -57,16 +58,20 @@ async function connectToDatabase() {
             }
         });
 
+        // Add New Book
         app.post('/books', async (req, res) => {
             const { name, authorName, description, category, quantity, rating, image, publicationYear } = req.body;
-        
-            // Check for missing fields
+
             if (!name || !authorName || !description || !category || !quantity || !rating || !image || !publicationYear) {
                 return res.status(400).json({ error: 'All fields are required' });
             }
-        
+
+            if (typeof quantity !== 'number') {
+                return res.status(400).json({ error: 'Invalid quantity' });
+            }
+
             const newBook = { name, authorName, description, category, quantity, rating, image, publicationYear };
-        
+
             try {
                 const result = await bookCollection.insertOne(newBook);
                 res.status(201).json({ message: 'Book added successfully', bookId: result.insertedId });
@@ -75,8 +80,6 @@ async function connectToDatabase() {
                 res.status(500).json({ error: 'Failed to add book' });
             }
         });
-        
-        
 
         // Update a Book's Quantity
         app.patch('/books/:bookId', async (req, res) => {
@@ -84,12 +87,12 @@ async function connectToDatabase() {
             const { quantity } = req.body;
 
             try {
-                if (!quantity || typeof quantity !== 'number') {
-                    return res.status(400).json({ error: 'Invalid or missing quantity' });
+                if (typeof quantity !== 'number') {
+                    return res.status(400).json({ error: 'Invalid quantity' });
                 }
 
                 const result = await bookCollection.updateOne(
-                    { bookId },
+                    { _id: new ObjectId(bookId) },
                     { $set: { quantity } }
                 );
 
@@ -109,7 +112,7 @@ async function connectToDatabase() {
             const { bookId } = req.params;
 
             try {
-                const result = await bookCollection.deleteOne({ bookId });
+                const result = await bookCollection.deleteOne({ _id: new ObjectId(bookId) });
 
                 if (result.deletedCount > 0) {
                     res.status(200).json({ message: 'Book deleted successfully' });
@@ -123,36 +126,40 @@ async function connectToDatabase() {
         });
 
         app.post('/borrow/:id', async (req, res) => {
-            const { id } = req.params; // 'id' is treated as a plain string
+            const { id } = req.params;
             const { userName, userEmail, returnDate } = req.body;
         
-            // Validate input fields
             if (!userName || !userEmail || !returnDate) {
                 return res.status(400).json({ error: 'All fields are required' });
             }
         
             try {
-                // Find the book using the plain string `id`
-                const book = await bookCollection.findOne({ _id: id });
+                const book = await bookCollection.findOne({ _id: new ObjectId(id) });
         
                 if (!book) {
                     return res.status(404).json({ error: 'Book not found' });
                 }
         
-                if (book.quantity <= 0) {
-                    return res.status(400).json({ error: 'Book out of stock' });
+                if (book.quantity < 1) {
+                    return res.status(400).json({ error: 'Invalid book quantity or book out of stock' });
                 }
         
-                // Update the book quantity
-                const result = await bookCollection.updateOne(
-                    { _id: id },
+                const updateResult = await bookCollection.updateOne(
+                    { _id: new ObjectId(id) },
                     { $inc: { quantity: -1 } }
                 );
         
-                if (result.modifiedCount > 0) {
+                if (updateResult.modifiedCount > 0) {
+                    await BorrowbookCollection.insertOne({
+                        bookId: id,
+                        userName,
+                        userEmail,
+                        returnDate,
+                    });
+        
                     res.status(200).json({ message: 'Book borrowed successfully' });
                 } else {
-                    res.status(400).json({ error: 'Failed to update book quantity' });
+                    res.status(500).json({ error: 'Failed to borrow the book' });
                 }
             } catch (error) {
                 console.error("Error borrowing book:", error.message);
@@ -160,6 +167,26 @@ async function connectToDatabase() {
             }
         });
         
+
+        // Return a Book
+        app.post('/return-book/:id', async (req, res) => {
+            const { id } = req.params;
+            const { email } = req.body;
+
+            try {
+                const result = await BorrowbookCollection.deleteOne({ bookId: id, userEmail: email });
+
+                if (result.deletedCount > 0) {
+                    await bookCollection.updateOne({ _id: new ObjectId(id) }, { $inc: { quantity: 1 } });
+                    res.status(200).json({ message: 'Book returned successfully' });
+                } else {
+                    res.status(404).json({ error: 'Borrowed book not found' });
+                }
+            } catch (error) {
+                console.error("Error returning book:", error.message);
+                res.status(500).json({ error: 'Failed to return book' });
+            }
+        });
 
     } catch (error) {
         console.error("Error connecting to MongoDB:", error.message);
@@ -170,5 +197,5 @@ async function connectToDatabase() {
 connectToDatabase();
 
 app.listen(port, () => {
-    console.log(`Books are uploading: ${port}`);
+    console.log(`Books are uploading on port: ${port}`);
 });
