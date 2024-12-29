@@ -16,7 +16,7 @@ async function connectToDatabase() {
     const client = new MongoClient(uri, { useUnifiedTopology: true });
 
     try {
-        await client.connect();
+       
         console.log("MongoClient: Successfully connected to MongoDB");
 
         const bookCollection = client.db("Ereaders-database").collection("books-data");
@@ -81,31 +81,28 @@ async function connectToDatabase() {
             }
         });
 
-        // Update a Book's Quantity
         app.patch('/books/:bookId', async (req, res) => {
             const { bookId } = req.params;
-            const { quantity } = req.body;
-
+            const updateData = req.body; // Allow multiple fields to be updated
+        
             try {
-                if (typeof quantity !== 'number') {
-                    return res.status(400).json({ error: 'Invalid quantity' });
-                }
-
                 const result = await bookCollection.updateOne(
                     { _id: new ObjectId(bookId) },
-                    { $set: { quantity } }
+                    { $set: updateData }
                 );
-
+        
                 if (result.matchedCount > 0) {
                     res.status(200).json({ message: 'Book updated successfully' });
                 } else {
                     res.status(404).json({ error: 'Book not found' });
                 }
             } catch (error) {
-                console.error("Error updating book:", error.message);
+                console.error('Error updating book:', error.message);
                 res.status(500).json({ error: 'Failed to update book' });
             }
         });
+        
+        
 
         // Delete a Book
         app.delete('/books/:bookId', async (req, res) => {
