@@ -60,18 +60,24 @@ async function connectToDatabase() {
 
         // Add New Book
         app.post('/books', async (req, res) => {
-            const { name, authorName, description, category, quantity, rating, image, publicationYear } = req.body;
-
+            const { name, authorName, description, category, image } = req.body;
+            let { quantity, rating, publicationYear } = req.body;
+        
+            // Convert numeric fields to numbers
+            quantity = Number(quantity);
+            rating = Number(rating);
+            publicationYear = Number(publicationYear);
+        
             if (!name || !authorName || !description || !category || !quantity || !rating || !image || !publicationYear) {
                 return res.status(400).json({ error: 'All fields are required' });
             }
-
-            if (typeof quantity !== 'number') {
-                return res.status(400).json({ error: 'Invalid quantity' });
+        
+            if (isNaN(quantity) || isNaN(rating) || isNaN(publicationYear)) {
+                return res.status(400).json({ error: 'Quantity, rating, and publication year must be numbers' });
             }
-
+        
             const newBook = { name, authorName, description, category, quantity, rating, image, publicationYear };
-
+        
             try {
                 const result = await bookCollection.insertOne(newBook);
                 res.status(201).json({ message: 'Book added successfully', bookId: result.insertedId });
@@ -80,6 +86,7 @@ async function connectToDatabase() {
                 res.status(500).json({ error: 'Failed to add book' });
             }
         });
+        
 
         app.patch('/books/:bookId', async (req, res) => {
             const { bookId } = req.params;
